@@ -1,0 +1,73 @@
+name: UCF Recreational Sports System CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-ci:
+    name: Django Backend, ORM & PostgreSQL Test Suite
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ucf_rwc_db
+          POSTGRES_USER: ucf_rwc_user
+          POSTGRES_PASSWORD: ucf_rwc_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run Ruff Linter
+        run: ruff check .
+      - name: Run Migrations & Automated Test Suite
+        env:
+          POSTGRES_DB: ucf_rwc_db
+          POSTGRES_USER: ucf_rwc_user
+          POSTGRES_PASSWORD: ucf_rwc_password
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate
+          python manage.py test --verbosity=2
+
+  frontend-ci:
+    name: Next.js TypeScript & Build Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install and Typecheck
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            npm run lint
+            npx tsc --noEmit
+          fi
