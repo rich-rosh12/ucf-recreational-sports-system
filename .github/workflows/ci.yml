@@ -72,11 +72,10 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install and Typecheck
+      - name: Install and Build (with TypeScript verification)
         working-directory: ./frontend
         run: |
           if [ -f package.json ]; then
             npm install --no-audit --no-fund
-            npx tsc --noEmit
             npm run build
           fi
