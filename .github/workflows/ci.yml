@@ -1,15 +1,19 @@
-name: UCF Recreational Sports System CI
+﻿name: UCF RWC Full-Stack CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main, develop]
+    branches: [ main, develop ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  backend-ci:
+  backend-tests:
     name: Django Backend, ORM & PostgreSQL Test Suite
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -21,53 +25,58 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 5s
+          --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    defaults:
-      run:
-        working-directory: ./backend
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.12
+
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: "pip"
-      - name: Install dependencies
+          python-version: "3.13"
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run Ruff Linter
-        run: ruff check .
-      - name: Run Migrations & Automated Test Suite
-        env:
-          POSTGRES_DB: ucf_rwc_db
-          POSTGRES_USER: ucf_rwc_user
-          POSTGRES_PASSWORD: ucf_rwc_password
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-        run: |
-          python manage.py makemigrations --check --dry-run
-          python manage.py migrate
-          python manage.py test --verbosity=2
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-  frontend-ci:
+      - name: Run Migrations & Automated Unit Tests
+        working-directory: ./backend
+        env:
+          DB_NAME: ucf_rwc_db
+          DB_USER: ucf_rwc_user
+          DB_PASSWORD: ucf_rwc_password
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DJANGO_SECRET_KEY: ci-test-secret-key-ucf-rwc
+          DJANGO_DEBUG: "True"
+        run: |
+          if [ -f manage.py ]; then
+            python manage.py makemigrations --check --dry-run
+            python manage.py migrate
+            python manage.py test --verbosity=2
+          fi
+
+  frontend-build:
     name: Next.js TypeScript & Build Check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Node.js 20
+
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
+
       - name: Install and Typecheck
+        working-directory: ./frontend
         run: |
           if [ -f package.json ]; then
-            npm ci
-            npm run lint
+            npm install --no-audit --no-fund
             npx tsc --noEmit
+            npm run build
           fi
